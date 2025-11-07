@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Volume Spike Screener</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-bg: #0f172a;
+            --card-bg: #1e293b;
+            --primary-text: #e2e8f0;
+            --accent: #0ea5e9;
+            --green: #22c55e;
+            --red: #ef4444;
+            --yellow: #eab308;
+            --orange: #f97316;
+        }
+        
+        body {
+            background-color: var(--primary-bg);
+            color: var(--primary-text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            padding-top: 20px;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            margin-bottom: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #0c4a6e 0%, #0f172a 100%);
+            padding: 25px 0;
+            border-radius: 0 0 20px 20px;
+            margin-bottom: 30px;
+        }
+        
+        .timeframe-selector {
+            background: rgba(14, 165, 233, 0.15);
+            border-radius: 12px;
+            padding: 8px;
+        }
+        
+        .time-btn {
+            background: transparent;
+            color: var(--primary-text);
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 8px 15px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .time-btn:hover, .time-btn.active {
+            background: #0ea5e9;
+            color: white;
+        }
+        
+        .volume-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        
+        .volume-high {
+            background-color: var(--green);
+        }
+        
+        .volume-low {
+            background-color: #64748b;
+        }
+        
+        .table-responsive {
+            border-radius: 12px;
+            overflow: auto;
+            max-height: 600px;
+        }
+        
+        .table-container {
+            min-width: 1100px;
+        }
+        
+        .table {
+            color: var(--primary-text);
+            margin-bottom: 0;
+            min-width: 1100px;
+        }
+        
+        .table th {
+            background: #1a2539;
+            color: #94a3b8;
+            font-weight: 600;
+            padding: 16px 24px;
+            border: none;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .table td {
+            padding: 18px 24px;
+            border: none;
+            border-bottom: 1px solid #334155;
+            vertical-align: middle;
+        }
+        
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .table tbody tr {
+            transition: background 0.3s ease;
+        }
+        
+        .table tbody tr:hover {
+            background: rgba(30, 41, 59, 0.7);
+        }
+        
+        .recent-spike {
+            background: rgba(34, 197, 94, 0.15) !important;
+            border-left: 3px solid var(--green);
+        }
+        
+        .spike-badge {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--green);
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .last-updated {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        
+        .api-status {
+            display: inline-flex;
+            align-items: center;
+            font-size: 14px;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        .status-active {
+            background: var(--green);
+        }
+        
+        .volume-bar {
+            display: inline-block;
+            height: 20px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            min-width: 60px;
+            padding: 0 5px;
+            line-height: 20px;
+            color: white;
+        }
+        
+        .volume-1 { background: linear-gradient(90deg, #10b981, #22c55e); }
+        .volume-2 { background: linear-gradient(90deg, #22c55e, #84cc16); }
+        .volume-3 { background: linear-gradient(90deg, #84cc16, #eab308); }
+        .volume-4 { background: linear-gradient(90deg, #eab308, #f97316); }
+        .volume-5 { background: linear-gradient(90deg, #f97316, #ef4444); }
+        
+        .spike-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .spike-details {
+            display: flex;
+            flex-direction: column;
+            font-size: 14px;
+        }
+        
+        .spike-multiplier {
+            font-weight: bold;
+            color: #22c55e;
+        }
+        
+        .candle-indicator {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .green-candle {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        
+        .red-candle {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .scroll-hint {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(14, 165, 233, 0.2);
+            color: #0ea5e9;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        
+        .update-indicator {
+            animation: highlight 2s ease;
+        }
+        
+        @keyframes highlight {
+            0% { background-color: rgba(14, 165, 233, 0.3); }
+            100% { background-color: transparent; }
+        }
+        
+        footer {
+            color: #64748b;
+            padding: 20px 0;
+            margin-top: 30px;
+            font-size: 14px;
+        }
+        
+        .search-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+        }
+        
+        .pair-count {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(14, 165, 233, 0.2);
+            color: #0ea5e9;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        .symbol-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-size: 12px;
+            background: #334155;
+        }
+        
+        .symbol-icon i {
+            font-size: 12px;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 30px;
+            color: #94a3b8;
+        }
+        
+        .progress {
+            height: 6px;
+            background: #334155;
+            width: 200px;
+            margin: 10px auto;
+        }
+        
+        .progress-bar {
+            background: #0ea5e9;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 10px;
+        }
+        
+        .page-btn {
+            background: rgba(14, 165, 233, 0.2);
+            border: 1px solid #0ea5e9;
+            color: #0ea5e9;
+            padding: 5px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .page-btn:hover {
+            background: #0ea5e9;
+            color: white;
+        }
+        
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .page-info {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+        }
+
+        /* New styles for TradingView links */
+        .symbol-link {
+            color: var(--accent);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        
+        .symbol-link:hover {
+            color: #38bdf8;
+            text-decoration: underline;
+        }
+        
+        .external-link-icon {
+            font-size: 10px;
+            margin-left: 4px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h1 class="mb-3"><i class="fas fa-chart-line me-3"></i>Crypto Volume Spike Screener</h1>
+                    <p class="lead">Track volume spikes across all Binance USDT pairs</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <div class="d-inline-block timeframe-selector">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn time-btn active" data-timeframe="5m">5m</button>
+                            <button type="button" class="btn time-btn" data-timeframe="15m">15m</button>
+                            <button type="button" class="btn time-btn" data-timeframe="1h">1h</button>
+                            <button type="button" class="btn time-btn" data-timeframe="4h">4h</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0">Volume Spike Analysis (1.3x+ Volume Spikes)</h4>
+                    <div>
+                        <span class="api-status me-3">
+                            <span class="status-indicator status-active"></span>
+                            <span>Binance API: Active</span>
+                        </span>
+                        <span class="last-updated">
+                            <i class="fas fa-sync-alt me-2"></i>Last updated: <span id="update-time">Just now</span>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="search-container">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="pair-search" class="form-control ps-5" placeholder="Search pairs (e.g. BTC, ETH, SOL)">
+                    <span class="pair-count" id="pair-count">Loading pairs...</span>
+                </div>
+                
+                <div class="position-relative">
+                    <div class="scroll-hint">
+                        <i class="fas fa-arrow-right me-1"></i>Scroll to see more
+                    </div>
+                    <div class="table-responsive">
+                        <div class="table-container">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Currency Pair</th>
+                                        <th>Current Price</th>
+                                        <th>Spike Price</th>
+                                        <th>Candle</th>
+                                        <th>Candles Since</th>
+                                        <th>Volume Spike</th>
+                                        <th>Spike Time (PKT)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="crypto-table">
+                                    <tr>
+                                        <td colspan="7" class="text-center">
+                                            <div class="py-4">
+                                                <div class="loading-spinner"></div>
+                                                Loading cryptocurrency pairs from Binance...
+                                                <div class="progress mt-3">
+                                                    <div id="loading-progress" class="progress-bar" style="width: 0%"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="pagination-controls">
+                    <button id="prev-page" class="page-btn" disabled>
+                        <i class="fas fa-chevron-left"></i> Prev
+                    </button>
+                    <div class="page-info">
+                        Page <span id="current-page">1</span> of <span id="total-pages">1</span>
+                    </div>
+                    <button id="next-page" class="page-btn" disabled>
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+                <div class="mt-4">
+                    <div class="alert alert-primary bg-opacity-10 border-primary">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <i class="fas fa-info-circle fa-2x text-primary"></i>
+                            </div>
+                            <div>
+                                <h5>About Volume Spikes & Candle Colors</h5>
+                                <p class="mb-0">
+                                    <span class="green-candle p-1 rounded me-1"><i class="fas fa-arrow-up"></i> Green candle</span> - Price increased during the candle period<br>
+                                    <span class="red-candle p-1 rounded me-1"><i class="fas fa-arrow-down"></i> Red candle</span> - Price decreased during the candle period<br>
+                                    Volume spikes occur when trading volume is 1.3x or more than the average of the last 5-10 candles. Recent spikes (within last 3 candles) are highlighted in green.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="container text-center mt-4">
+        <div class="row">
+            <div class="col">
+                <p class="mb-0">Crypto Volume Spike Screener &copy; 2023 | Data provided by Binance API | Pakistan Standard Time (PKT)</p>
+            </div>
+        </div>
+    </footer>
+    
+    <script>
+        // Global variables
+        let currentTimeframe = '5m';
+        let allSymbols = [];
+        let filteredSymbols = [];
+        let symbolData = {};
+        let currentPage = 1;
+        const itemsPerPage = 50;
+        
+        // Binance API endpoints
+        const binanceBaseUrl = 'https://api.binance.com';
+        
+        // Function to detect if user is on mobile device
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+        
+        // Function to generate TradingView URL
+        function getTradingViewUrl(symbol, baseSymbol) {
+            // Format: BINANCE:BTCUSDT for TradingView
+            const tvSymbol = `BINANCE:${symbol}`;
+            
+            if (isMobileDevice()) {
+                // Mobile app deep link
+                return `tradingview://chart/?symbol=${encodeURIComponent(tvSymbol)}`;
+            } else {
+                // Desktop website
+                return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`;
+            }
+        }
+        
+        // Timeframe selector functionality
+        document.querySelectorAll('.time-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                document.querySelectorAll('.time-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Get selected timeframe
+                currentTimeframe = this.dataset.timeframe;
+                
+                // Fetch data for visible symbols
+                fetchVisibleData();
+            });
+        });
+        
+        // Pagination functionality
+        document.getElementById('prev-page').addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderVisiblePairs();
+                fetchVisibleData();
+                updatePaginationControls();
+            }
+        });
+        
+        document.getElementById('next-page').addEventListener('click', function() {
+            const totalPages = Math.ceil(filteredSymbols.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderVisiblePairs();
+                fetchVisibleData();
+                updatePaginationControls();
+            }
+        });
+        
+        // Search functionality
+        document.getElementById('pair-search').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.trim().toUpperCase();
+            
+            if (searchTerm.length < 2) {
+                // Reset to all symbols when search is empty
+                filteredSymbols = [...allSymbols];
+            } else {
+                // Filter symbols by search term
+                filteredSymbols = allSymbols.filter(symbol => {
+                    return symbol.includes(searchTerm) || symbol.replace('USDT', '').includes(searchTerm);
+                });
+            }
+            
+            // Reset to first page
+            currentPage = 1;
+            
+            // Update pair count
+            document.getElementById('pair-count').textContent = `${filteredSymbols.length} pairs`;
+            
+            // Render the visible pairs
+            renderVisiblePairs();
+            
+            // Update pagination controls
+            updatePaginationControls();
+            
+            // Fetch data for visible symbols
+            fetchVisibleData();
+        });
+        
+        // Function to update pagination controls
+        function updatePaginationControls() {
+            const totalPages = Math.ceil(filteredSymbols.length / itemsPerPage);
+            document.getElementById('current-page').textContent = currentPage;
+            document.getElementById('total-pages').textContent = totalPages;
+            
+            document.getElementById('prev-page').disabled = currentPage <= 1;
+            document.getElementById('next-page').disabled = currentPage >= totalPages;
+        }
+        
+        // Function to fetch all USDT pairs from Binance
+        async function fetchAllUSDTpairs() {
+            try {
+                const response = await fetch(`${binanceBaseUrl}/api/v3/exchangeInfo`);
+                const data = await response.json();
+                
+                // Filter for USDT spot pairs
+                const usdtPairs = data.symbols
+                    .filter(symbolInfo => 
+                        symbolInfo.quoteAsset === 'USDT' && 
+                        symbolInfo.status === 'TRADING' &&
+                        !symbolInfo.symbol.includes('_') && // Exclude leveraged tokens
+                        !symbolInfo.symbol.includes('DOWN') && // Exclude leveraged tokens
+                        !symbolInfo.symbol.includes('UP') // Exclude leveraged tokens
+                    )
+                    .map(symbolInfo => symbolInfo.symbol);
+                
+                return usdtPairs;
+            } catch (error) {
+                console.error('Error fetching USDT pairs:', error);
+                return [];
+            }
+        }
+        
+        // Function to fetch kline data from Binance
+        async function fetchKlineData(symbol, interval, limit = 20) {
+            try {
+                const response = await fetch(`${binanceBaseUrl}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error(`Error fetching data for ${symbol}:`, error);
+                return null;
+            }
+        }
+        
+        // Function to detect volume spikes (1.3x or higher) and candle color
+        function detectVolumeSpike(klines) {
+            if (!klines || klines.length < 10) return null;
+            
+            // Extract volumes (index 5 in kline data)
+            const volumes = klines.map(k => parseFloat(k[5]));
+            const currentVolume = volumes[volumes.length - 1];
+            
+            // Calculate average volume of last 5-10 candles
+            const startIndex = Math.max(0, volumes.length - 10);
+            const endIndex = volumes.length - 5;
+            const avgVolumes = volumes.slice(startIndex, endIndex);
+            const avgVolume = avgVolumes.reduce((sum, vol) => sum + vol, 0) / avgVolumes.length;
+            
+            // Check if current volume is a spike (1.3x or higher)
+            if (currentVolume > avgVolume * 1.3) {
+                // Determine candle color
+                const open = parseFloat(klines[klines.length - 1][1]);
+                const close = parseFloat(klines[klines.length - 1][4]);
+                const isGreen = close > open;
+                
+                return {
+                    isSpike: true,
+                    price: close,
+                    volume: currentVolume,
+                    multiplier: (currentVolume / avgVolume).toFixed(1),
+                    timestamp: klines[klines.length - 1][0],
+                    candlesAgo: 0,
+                    isGreenCandle: isGreen
+                };
+            }
+            
+            // Check for spikes in recent candles (within last 3 candles)
+            for (let i = 1; i <= 3; i++) {
+                const idx = volumes.length - 1 - i;
+                if (idx < 0) break;
+                
+                if (volumes[idx] > avgVolume * 1.3) {
+                    // Determine candle color
+                    const open = parseFloat(klines[idx][1]);
+                    const close = parseFloat(klines[idx][4]);
+                    const isGreen = close > open;
+                    
+                    return {
+                        isSpike: true,
+                        price: close,
+                        volume: volumes[idx],
+                        multiplier: (volumes[idx] / avgVolume).toFixed(1),
+                        timestamp: klines[idx][0],
+                        candlesAgo: i,
+                        isGreenCandle: isGreen
+                    };
+                }
+            }
+            
+            return null;
+        }
+        
+        // Function to get volume bar class based on multiplier
+        function getVolumeBarClass(multiplier) {
+            const multiplierValue = parseFloat(multiplier);
+            if (multiplierValue >= 3.0) return 'volume-5';
+            if (multiplierValue >= 2.0) return 'volume-4';
+            if (multiplierValue >= 1.7) return 'volume-3';
+            if (multiplierValue >= 1.5) return 'volume-2';
+            return 'volume-1';
+        }
+        
+        // Function to format price
+        function formatPrice(price) {
+            if (price > 1000) {
+                return '$' + price.toFixed(2);
+            } else if (price > 1) {
+                return '$' + price.toFixed(3);
+            } else if (price > 0.01) {
+                return '$' + price.toFixed(4);
+            } else {
+                return '$' + price.toFixed(6);
+            }
+        }
+        
+        // Function to convert timestamp to PKT (UTC+5)
+        function toPKT(timestamp) {
+            const date = new Date(timestamp);
+            // PKT is UTC+5
+            date.setHours(date.getHours() + 5);
+            return date.toLocaleString('en-PK', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Karachi'
+            });
+        }
+        
+        // Function to format volume
+        function formatVolume(volume) {
+            if (volume > 1000000) {
+                return (volume / 1000000).toFixed(2) + 'M';
+            } else if (volume > 1000) {
+                return (volume / 1000).toFixed(2) + 'K';
+            }
+            return volume.toFixed(2);
+        }
+        
+        // Function to render visible pairs
+        function renderVisiblePairs() {
+            const tableBody = document.getElementById('crypto-table');
+            tableBody.innerHTML = '';
+            
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, filteredSymbols.length);
+            const visibleSymbols = filteredSymbols.slice(startIndex, endIndex);
+            
+            if (visibleSymbols.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="no-results">
+                            <i class="fas fa-search fa-2x mb-3"></i>
+                            <h5>No matching pairs found</h5>
+                            <p>Try a different search term</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            visibleSymbols.forEach(symbol => {
+                const row = document.createElement('tr');
+                row.id = `row-${symbol}`;
+                
+                // Get base symbol for display (remove USDT)
+                const baseSymbol = symbol.replace('USDT', '');
+                
+                // Generate TradingView URL
+                const tradingViewUrl = getTradingViewUrl(symbol, baseSymbol);
+                
+                row.innerHTML = `
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="symbol-icon">
+                                <i class="fas fa-coins"></i>
+                            </div>
+                            <strong>
+                                <a href="${tradingViewUrl}" target="_blank" class="symbol-link" title="Open ${baseSymbol}/USDT chart on TradingView">
+                                    ${baseSymbol}/USDT
+                                    <i class="fas fa-external-link-alt external-link-icon"></i>
+                                </a>
+                            </strong>
+                        </div>
+                    </td>
+                    <td id="current-price-${symbol}">
+                        <div class="loading-spinner"></div>
+                    </td>
+                    <td id="spike-price-${symbol}">-</td>
+                    <td id="candle-${symbol}">-</td>
+                    <td id="candles-since-${symbol}">-</td>
+                    <td id="volume-spike-${symbol}">
+                        <div class="loading-spinner"></div>
+                    </td>
+                    <td id="spike-time-${symbol}">-</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Function to update a table row
+        function updateTableRow(symbol, klines) {
+            const row = document.getElementById(`row-${symbol}`);
+            if (!row) return; // Row might not be visible
+            
+            if (!klines || klines.length < 10) {
+                // Update with error status
+                document.getElementById(`current-price-${symbol}`).innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById(`volume-spike-${symbol}`).innerHTML = '<span class="text-danger">Error</span>';
+                return;
+            }
+            
+            const currentPrice = parseFloat(klines[klines.length - 1][4]);
+            const spikeInfo = detectVolumeSpike(klines);
+            
+            // Update current price with highlight effect
+            const currentPriceCell = document.getElementById(`current-price-${symbol}`);
+            currentPriceCell.innerHTML = formatPrice(currentPrice);
+            currentPriceCell.classList.add('update-indicator');
+            setTimeout(() => currentPriceCell.classList.remove('update-indicator'), 2000);
+            
+            // Update spike price
+            document.getElementById(`spike-price-${symbol}`).textContent = spikeInfo ? formatPrice(spikeInfo.price) : '-';
+            
+            // Update candle indicator
+            const candleCell = document.getElementById(`candle-${symbol}`);
+            if (spikeInfo) {
+                candleCell.innerHTML = `<div class="candle-indicator ${spikeInfo.isGreenCandle ? 'green-candle' : 'red-candle'}">
+                    <i class="fas ${spikeInfo.isGreenCandle ? 'fa-arrow-up' : 'fa-arrow-down'}"></i>
+                </div>`;
+            } else {
+                candleCell.textContent = '-';
+            }
+            
+            // Update candles since spike
+            const candlesSinceCell = document.getElementById(`candles-since-${symbol}`);
+            if (spikeInfo) {
+                candlesSinceCell.innerHTML = spikeInfo.candlesAgo === 0 ? 
+                    '<span class="spike-badge">Current</span>' : 
+                    `${spikeInfo.candlesAgo} candle${spikeInfo.candlesAgo !== 1 ? 's' : ''} ago`;
+            } else {
+                candlesSinceCell.textContent = 'No spike';
+            }
+            
+            // Update volume spike details
+            const volumeSpikeCell = document.getElementById(`volume-spike-${symbol}`);
+            if (spikeInfo) {
+                volumeSpikeCell.innerHTML = `
+                    <div class="spike-indicator">
+                        <span class="volume-bar ${getVolumeBarClass(spikeInfo.multiplier)}">
+                            ${spikeInfo.multiplier}x
+                        </span>
+                        <div class="spike-details">
+                            <span>${formatVolume(spikeInfo.volume)} volume</span>
+                            <span class="spike-multiplier">${spikeInfo.multiplier}x avg</span>
+                        </div>
+                    </div>`;
+            } else {
+                volumeSpikeCell.innerHTML = '<span class="volume-indicator volume-low"></span> Normal';
+            }
+            
+            // Update spike time
+            document.getElementById(`spike-time-${symbol}`).textContent = spikeInfo ? toPKT(spikeInfo.timestamp) : '-';
+            
+            // Update row highlight
+            if (spikeInfo && spikeInfo.candlesAgo <= 2) {
+                row.classList.add('recent-spike');
+            } else {
+                row.classList.remove('recent-spike');
+            }
+        }
+        
+        // Function to fetch data for visible symbols
+        async function fetchVisibleData() {
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, filteredSymbols.length);
+            const visibleSymbols = filteredSymbols.slice(startIndex, endIndex);
+            
+            if (visibleSymbols.length === 0) return;
+            
+            // Show updating status
+            const updateTime = document.getElementById('update-time');
+            updateTime.innerHTML = '<span class="loading-spinner"></span>Updating...';
+            
+            // Update each visible row
+            for (const symbol of visibleSymbols) {
+                const klines = await fetchKlineData(symbol, currentTimeframe);
+                updateTableRow(symbol, klines);
+                
+                // Add small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Update the timestamp
+            const now = new Date();
+            updateTime.textContent = now.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }) + " PKT";
+        }
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Show loading status
+            document.getElementById('update-time').innerHTML = '<span class="loading-spinner"></span>Loading pairs...';
+            
+            // Fetch all USDT pairs
+            allSymbols = await fetchAllUSDTpairs();
+            
+            if (allSymbols.length === 0) {
+                document.getElementById('crypto-table').innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-danger">
+                            Failed to load trading pairs from Binance API. Please try again later.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // Sort symbols alphabetically
+            allSymbols.sort();
+            
+            // Initialize filtered symbols
+            filteredSymbols = [...allSymbols];
+            
+            // Update pair count
+            document.getElementById('pair-count').textContent = `${allSymbols.length} USDT pairs`;
+            
+            // Render the visible pairs
+            renderVisiblePairs();
+            
+            // Update pagination controls
+            updatePaginationControls();
+            
+            // Fetch data for visible symbols
+            await fetchVisibleData();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(fetchVisibleData, 30000);
+        });
+    </script>
+</body>
+</html>
